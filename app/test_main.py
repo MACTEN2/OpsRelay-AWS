@@ -6,17 +6,25 @@ client = TestClient(app)
 def test_health_check():
     response = client.get("/health")
     assert response.status_code == 200
-    assert response.json() == {"status": "healthy", "version": "1.0.0"}
+    assert response.json() == {"status": "healthy", "version": "1.1.0"}
 
-def test_chaos_trigger():
-    # Trigger chaos
-    response = client.post("/chaos")
+def test_metrics_endpoint():
+    response = client.get("/metrics")
     assert response.status_code == 200
-    
-    # Check that /health now fails
-    health_response = client.get("/health")
-    assert health_response.status_code == 500
+    data = response.json()
+    assert "total_requests" in data
+    assert "error_rate_pct" in data
 
-    # Recover app for other tests
-    recover_response = client.post("/recover")
-    assert recover_response.status_code == 200
+def test_log_level_change():
+    response = client.post("/log-level", json={"level": "DEBUG"})
+    assert response.status_code == 200
+    assert response.json()["message"] == "Log level updated to DEBUG"
+
+def test_chaos_and_recovery():
+    # Trigger chaos
+    client.post("/chaos")
+    assert client.get("/health").status_code == 500
+
+    # Recover app
+    client.post("/recover")
+    assert client.get("/health").status_code == 200
